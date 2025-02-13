@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        input {
+            width: 80%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: blue;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: darkblue;
+        }
+        #downloadLink {
+            display: none;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h2>YouTube Video Downloader</h2>
+    <input type="text" id="videoURL" placeholder="Paste YouTube URL here">
+    <button onclick="fetchDownloadLink()">Get Download Link</button>
+    <p id="status"></p>
+    <a id="downloadLink" target="_blank">Click here to download</a>
+
+    <script>
+        function fetchDownloadLink() {
+            let url = document.getElementById("videoURL").value;
+            if (!url) {
+                alert("Please enter a YouTube link!");
+                return;
+            }
+
+            fetch("/get_link", {  // Calls Flask API
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ url: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.download_url) {
+                    document.getElementById("status").innerText = "Click the link below to download!";
+                    let link = document.getElementById("downloadLink");
+                    link.href = data.download_url;
+                    link.style.display = "block";
+                    link.innerText = "Click here to download";
+                } else {
+                    document.getElementById("status").innerText = "Error: " + (data.error || "Unknown error");
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                document.getElementById("status").innerText = "Failed to fetch download link.";
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,19 +1,25 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import yt_dlp
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")  # Serve HTML from 'templates/' folder
 CORS(app)
 
-# Ensure cookies.txt exists (for authenticated downloads)
+# Ensure cookies.txt exists for authentication
 COOKIES_FILE = "cookies.txt"
 if os.path.exists(COOKIES_FILE):
     print("✅ Using cookies.txt for authentication")
 else:
     print("⚠️ Warning: No cookies.txt found. Some videos may fail.")
 
-@app.route('/get_link', methods=['POST'])
+# Serve the main HTML page
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+# API to fetch the YouTube video download link
+@app.route("/get_link", methods=["POST"])
 def get_video_link():
     data = request.json
     video_url = data.get("url")
@@ -41,5 +47,5 @@ def get_video_link():
     except Exception as e:
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)

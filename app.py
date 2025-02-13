@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import yt_dlp
+import os
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
-CORS(app)  # Allow frontend to make requests
+CORS(app)
 
 # Serve the index.html page
 @app.route("/")
@@ -22,7 +23,8 @@ def get_download_link():
     try:
         ydl_opts = {
             'format': 'best[ext=mp4]',
-            'outtmpl': 'downloaded_video.mp4'
+            'outtmpl': 'downloaded_video.mp4',
+            'cookiefile': 'cookies.txt'  # Use exported YouTube cookies
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

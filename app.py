@@ -18,6 +18,7 @@ def get_video_link():
             'format': 'best[ext=mp4]',
             'quiet': True,
             'noplaylist': True,
+            'cookies_from_browser': ('chrome',)  # Automatically fetch cookies from Chrome
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

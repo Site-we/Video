@@ -3,27 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Video Downloader</title>
+    <title>Dailymotion Video Downloader</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            padding: 20px;
+            margin-top: 50px;
         }
-        input {
-            width: 80%;
+        input, button {
             padding: 10px;
-            margin: 10px 0;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
+            margin: 10px;
         }
         #download-link {
             margin-top: 20px;
@@ -32,49 +21,40 @@
     </style>
 </head>
 <body>
-    <h2>YouTube Video Downloader</h2>
-    <input type="text" id="video-url" placeholder="Enter YouTube Video URL">
-    <button onclick="downloadVideo()">Get Download Link</button>
-    
-    <p id="status"></p>
-    <a id="download-link" href="#" download>Download Video</a>
+    <h2>Dailymotion Video Downloader</h2>
+    <input type="text" id="video-url" placeholder="Enter Dailymotion video URL">
+    <button onclick="getDownloadLink()">Get Download Link</button>
+
+    <div id="download-link">
+        <p>Download Link: <a id="video-link" href="#" target="_blank">Click here</a></p>
+    </div>
 
     <script>
-        async function downloadVideo() {
-            const videoUrl = document.getElementById("video-url").value;
-            const statusText = document.getElementById("status");
-            const downloadLink = document.getElementById("download-link");
-
-            if (!videoUrl) {
-                alert("Please enter a YouTube video URL.");
+        function getDownloadLink() {
+            const url = document.getElementById("video-url").value;
+            if (!url) {
+                alert("Please enter a video URL.");
                 return;
             }
 
-            statusText.textContent = "Fetching download link...";
-            downloadLink.style.display = "none";
-
-            try {
-                const response = await fetch("/get_link", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ url: videoUrl })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    statusText.textContent = "Download link ready!";
-                    downloadLink.href = data.download_url;
-                    downloadLink.style.display = "inline";
-                    downloadLink.textContent = "Click here to download";
+            fetch("/get_dailymotion_link", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ url: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.download_url) {
+                    document.getElementById("video-link").href = data.download_url;
+                    document.getElementById("video-link").textContent = "Download Video";
+                    document.getElementById("download-link").style.display = "block";
                 } else {
-                    statusText.textContent = `Error: ${data.error}`;
+                    alert("Error: " + data.error);
                 }
-            } catch (error) {
-                statusText.textContent = "Error fetching video.";
-            }
+            })
+            .catch(error => console.error("Error:", error));
         }
     </script>
 </body>

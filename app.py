@@ -1,9 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import yt_dlp
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/')
+def index():
+    return render_template("index.html")
 
 @app.route('/get_link', methods=['POST'])
 def get_video_link():
@@ -18,7 +22,7 @@ def get_video_link():
             'format': 'best[ext=mp4]',
             'quiet': True,
             'noplaylist': True,
-            'cookies_from_browser': ('chrome',)  # Automatically fetch cookies from Chrome
+            'cookies_from_browser': ('chrome',)
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

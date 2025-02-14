@@ -14,7 +14,7 @@
             padding: 10px;
             margin: 10px;
         }
-        #download-link {
+        #download-section {
             margin-top: 20px;
             display: none;
         }
@@ -23,10 +23,13 @@
 <body>
     <h2>Dailymotion Video Downloader</h2>
     <input type="text" id="video-url" placeholder="Enter Dailymotion video URL">
-    <button onclick="getDownloadLink()">Get Download Link</button>
+    <button onclick="getDownloadLink()">Download Video</button>
 
-    <div id="download-link">
-        <p>Download Link: <a id="video-link" href="#" target="_blank">Click here</a></p>
+    <div id="download-section">
+        <p>Click below to download:</p>
+        <a id="download-link" href="#" download>
+            <button>Download Now</button>
+        </a>
     </div>
 
     <script>
@@ -46,10 +49,10 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.download_url) {
-                    document.getElementById("video-link").href = data.download_url;
-                    document.getElementById("video-link").textContent = "Download Video";
-                    document.getElementById("download-link").style.display = "block";
+                if (data.file_path) {
+                    const downloadUrl = "/download_video?file=" + encodeURIComponent(data.file_path);
+                    document.getElementById("download-link").href = downloadUrl;
+                    document.getElementById("download-section").style.display = "block";
                 } else {
                     alert("Error: " + data.error);
                 }

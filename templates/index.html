@@ -23,10 +23,10 @@
 <body>
     <h2>Dailymotion Video Downloader</h2>
     <input type="text" id="video-url" placeholder="Enter Dailymotion video URL">
-    <button onclick="getDownloadLink()">Get Download Link</button>
+    <button onclick="getDownloadLink()">Download Video</button>
 
     <div id="download-link">
-        <p>Download Link: <a id="video-link" href="#" download target="_blank">Click here to download</a></p>
+        <p>Download Link: <a id="video-link" href="#" target="_blank">Click here to download</a></p>
     </div>
 
     <script>
@@ -49,7 +49,6 @@
                 if (data.download_url) {
                     const videoLink = document.getElementById("video-link");
                     videoLink.href = data.download_url;
-                    videoLink.download = "video.mp4";  // Forces download
                     videoLink.textContent = "Download Video";
                     document.getElementById("download-link").style.display = "block";
                 } else {

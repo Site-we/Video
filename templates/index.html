@@ -59,9 +59,9 @@
         <img id="thumbnail" src="" alt="Thumbnail">
         <h3 id="title">Loading...</h3>
         <select id="quality"></select>
-        <button onclick="startDownload()">Download</button>
+        <button id="downloadBtn" onclick="startDownload()">Download</button>
         <p id="status">Fetching video details...</p>
-        <div class="progress-bar"><div id="progress" class="progress">0%</div></div>
+        <div class="progress-bar" id="progressBar"><div id="progress" class="progress">0%</div></div>
         <p id="speed">Download Speed: 0 MB/s</p>
     </div>
 
@@ -119,6 +119,10 @@
             const downloadUrl = document.getElementById("quality").value;
             const videoTitle = document.getElementById("title").textContent.replace(/[<>:"/\\|?*]+/g, ""); // Sanitize filename
 
+            // Hide download button & quality selection
+            document.getElementById("downloadBtn").style.display = "none";
+            document.getElementById("quality").style.display = "none";
+
             if (downloadUrl.endsWith(".m3u8")) {
                 downloadM3U8(downloadUrl, videoTitle);
             } else {
@@ -133,7 +137,12 @@
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            document.getElementById("status").textContent = "Download started!";
+
+            document.getElementById("status").textContent = "Saving...";
+            setTimeout(() => {
+                document.getElementById("status").textContent = "Video saved!";
+                document.getElementById("progressBar").style.display = "none";
+            }, 3000);
         }
 
         async function downloadM3U8(m3u8Url, title) {
@@ -189,7 +198,11 @@
                 a.click();
                 document.body.removeChild(a);
 
-                document.getElementById("status").textContent = "Download complete!";
+                document.getElementById("status").textContent = "Saving...";
+                setTimeout(() => {
+                    document.getElementById("status").textContent = "Video saved!";
+                    document.getElementById("progressBar").style.display = "none";
+                }, 3000);
             } catch (error) {
                 document.getElementById("status").textContent = "Error downloading video.";
                 console.error(error);

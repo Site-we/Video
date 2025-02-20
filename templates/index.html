@@ -8,56 +8,70 @@
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            background-color: #f4f4f4;
+            padding: 20px;
         }
         .container {
-            margin: 50px auto;
-            width: 50%;
-            background: white;
+            max-width: 500px;
+            margin: auto;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            background: #f4f4f4;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-        input, button, select {
-            padding: 10px;
-            margin: 10px;
-            font-size: 16px;
-            width: 90%;
-        }
-        .thumbnail {
+        img {
             max-width: 100%;
-            border-radius: 10px;
-            margin: 10px 0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #ddd;
+            margin-top: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            width: 0%;
+            background: #4caf50;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-
+    <h2>Download Lecture</h2>
     <div class="container">
-        <h2>Download Lecture</h2>
-        <input type="text" id="videoUrl" placeholder="Enter Dailymotion video URL">
-        <button onclick="fetchVideoDetails()">Fetch Video</button>
-
-        <div id="videoDetails" style="display: none;">
-            <h3 id="videoTitle"></h3>
-            <img id="videoThumbnail" class="thumbnail" alt="Thumbnail">
-            <select id="qualityOptions"></select>
-            <button onclick="downloadVideo()">Download</button>
-        </div>
-
-        <p id="status">Waiting for video URL...</p>
+        <img id="thumbnail" src="" alt="Thumbnail">
+        <h3 id="title">Loading...</h3>
+        <select id="quality"></select>
+        <button onclick="startDownload()">Download</button>
+        <p id="status">Fetching video details...</p>
+        <div class="progress-bar"><div id="progress" class="progress">0%</div></div>
+        <p id="speed">Download Speed: 0 KB/s</p>
     </div>
 
     <script>
-        let videoFormats = [];
+        function getQueryParameter(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
 
-        async function fetchVideoDetails() {
-            const url = document.getElementById("videoUrl").value;
-            if (!url) {
-                alert("Please enter a valid URL");
-                return;
-            }
-
+        async function fetchVideoDetails(url) {
             document.getElementById("status").textContent = "Fetching video details...";
 
             try {
@@ -74,44 +88,123 @@
                     return;
                 }
 
-                document.getElementById("videoTitle").textContent = data.title;
-                document.getElementById("videoThumbnail").src = data.thumbnail;
-                document.getElementById("videoDetails").style.display = "block";
-                document.getElementById("status").textContent = "Video details loaded.";
+                document.getElementById("title").textContent = data.title;
+                document.getElementById("thumbnail").src = data.thumbnail;
 
-                videoFormats = data.formats;
-
-                const qualitySelect = document.getElementById("qualityOptions");
+                const qualitySelect = document.getElementById("quality");
                 qualitySelect.innerHTML = "";
-                data.formats.forEach((format, index) => {
+
+                let defaultSelected = false;
+                data.formats.forEach((format) => {
                     const option = document.createElement("option");
-                    option.value = index;
+                    option.value = format.url;
                     option.textContent = format.quality;
+
+                    if (format.quality.includes("480p") && !defaultSelected) {
+                        option.selected = true;
+                        defaultSelected = true;
+                    }
+
                     qualitySelect.appendChild(option);
                 });
 
+                document.getElementById("status").textContent = "Ready to download!";
             } catch (error) {
                 document.getElementById("status").textContent = "An error occurred.";
                 console.error(error);
             }
         }
 
-        function downloadVideo() {
-            const selectedQuality = document.getElementById("qualityOptions").value;
-            if (!videoFormats[selectedQuality]) {
-                alert("Invalid quality selection");
-                return;
-            }
+        function startDownload() {
+            const downloadUrl = document.getElementById("quality").value;
 
+            if (downloadUrl.endsWith(".m3u8")) {
+                downloadM3U8(downloadUrl);
+            } else {
+                downloadMP4(downloadUrl);
+            }
+        }
+
+        function downloadMP4(url) {
             const a = document.createElement("a");
-            a.href = videoFormats[selectedQuality].url;
+            a.href = url;
             a.download = "video.mp4";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            document.getElementById("status").textContent = "Download started...";
+            document.getElementById("status").textContent = "Download started!";
         }
-    </script>
 
+        async function downloadM3U8(m3u8Url) {
+            document.getElementById("status").textContent = "Fetching M3U8 playlist...";
+            document.getElementById("progress").style.width = "0%";
+            document.getElementById("progress").textContent = "0%";
+            document.getElementById("speed").textContent = "Download Speed: 0 KB/s";
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(m3u8Url);
+                const playlistText = await response.text();
+
+                const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
+                const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
+
+                if (tsFiles.length === 0) {
+                    document.getElementById("status").textContent = "No TS files found.";
+                    return;
+                }
+
+                document.getElementById("status").textContent = `Downloading ${tsFiles.length} segments...`;
+
+                let blobParts = [];
+                let downloadedSize = 0;
+
+                async function downloadSegment(tsUrl, index) {
+                    if (!tsUrl.startsWith("http")) {
+                        tsUrl = baseUrl + tsUrl;
+                    }
+
+                    const tsResponse = await fetch(tsUrl);
+                    const tsBlob = await tsResponse.blob();
+                    blobParts[index] = tsBlob;
+
+                    downloadedSize += tsBlob.size;
+                    const elapsedTime = (Date.now() - startTime) / 1000; // seconds
+                    const speed = (downloadedSize / 1024 / elapsedTime).toFixed(2); // KB/s
+
+                    const progressPercent = ((index + 1) / tsFiles.length) * 100;
+                    document.getElementById("progress").style.width = progressPercent + "%";
+                    document.getElementById("progress").textContent = Math.round(progressPercent) + "%";
+                    document.getElementById("speed").textContent = `Download Speed: ${speed} KB/s`;
+                }
+
+                await Promise.all(tsFiles.map((url, index) => downloadSegment(url, index)));
+
+                const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
+                const downloadUrl = URL.createObjectURL(mergedBlob);
+
+                const a = document.createElement("a");
+                a.href = downloadUrl;
+                a.download = "video.ts";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                document.getElementById("status").textContent = "Download complete!";
+            } catch (error) {
+                document.getElementById("status").textContent = "Error downloading M3U8 file.";
+                console.error(error);
+            }
+        }
+
+        window.onload = () => {
+            const videoUrl = getQueryParameter("url");
+            if (videoUrl) {
+                fetchVideoDetails(videoUrl);
+            } else {
+                document.getElementById("status").textContent = "No video URL provided.";
+            }
+        };
+    </script>
 </body>
 </html>

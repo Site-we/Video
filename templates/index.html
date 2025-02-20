@@ -10,87 +10,82 @@
     <p id="status">Waiting for video URL...</p>
 
     <script>
-        async function getDownloadLink(url) {
-            document.getElementById("status").textContent = "Fetching download link...";
+    async function getDownloadLink(url) {
+        document.getElementById("status").textContent = "Fetching download link...";
 
-            try {
-                const response = await fetch("/get_dailymotion_link", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url: url })
-                });
+        try {
+            const response = await fetch("/get_dailymotion_link", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: url })
+            });
 
-                const data = await response.json();
+            const data = await response.json();
 
-                if (data.download_url) {
-                    document.getElementById("status").textContent = "Download started...";
-                    if (data.download_url.startsWith("blob:")) {
-                        await downloadBlobFile(data.download_url);
-                    } else if (data.download_url.endsWith(".m3u8")) {
-                        await downloadM3U8(data.download_url);
-                    } else {
-                        await fetchAndSaveFile(data.download_url, "video.mp4");
-                    }
+            if (data.download_url) {
+                document.getElementById("status").textContent = "Downloading...";
+                if (data.download_url.endsWith(".m3u8")) {
+                    await downloadM3U8(data.download_url);
                 } else {
-                    document.getElementById("status").textContent = "Error: " + data.error;
+                    await progressiveDownload(data.download_url, "video.mp4");
                 }
-            } catch (error) {
-                document.getElementById("status").textContent = "An error occurred.";
-                console.error(error);
+            } else {
+                document.getElementById("status").textContent = "Error: " + data.error;
             }
+        } catch (error) {
+            document.getElementById("status").textContent = "An error occurred.";
+            console.error(error);
+        }
+    }
+
+    async function progressiveDownload(fileUrl, fileName) {
+        const response = await fetch(fileUrl);
+        if (!response.ok) {
+            document.getElementById("status").textContent = "Failed to download.";
+            return;
         }
 
-        async function fetchAndSaveFile(fileUrl, filename) {
-            document.getElementById("status").textContent = "Downloading file...";
+        const fileHandle = await window.showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: "Video Files", accept: { "video/mp4": [".mp4"] } }]
+        });
 
-            try {
-                const response = await fetch(fileUrl);
-                const blob = await response.blob();
-                saveBlobToFile(blob, filename);
-            } catch (error) {
-                document.getElementById("status").textContent = "Error downloading file.";
-                console.error(error);
+        const writableStream = await fileHandle.createWritable();
+        const reader = response.body.getReader();
+
+        let receivedLength = 0;
+        const totalLength = response.headers.get("Content-Length") || 0;
+
+        async function processStream() {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                receivedLength += value.length;
+                await writableStream.write(value);
+                document.getElementById("status").textContent = `Downloading... ${Math.round((receivedLength / totalLength) * 100)}%`;
             }
-        }
 
-        async function downloadBlobFile(blobUrl) {
-            document.getElementById("status").textContent = "Processing blob URL...";
-            try {
-                const blobResponse = await fetch(blobUrl);
-                const blob = await blobResponse.blob();
-                saveBlobToFile(blob, "downloaded_video.mp4");
-            } catch (error) {
-                document.getElementById("status").textContent = "Error downloading blob.";
-                console.error(error);
-            }
-        }
-
-        function saveBlobToFile(blob, filename) {
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(blobUrl);
+            await writableStream.close();
             document.getElementById("status").textContent = "Download complete!";
         }
 
-        function getQueryParameter(name) {
-            const params = new URLSearchParams(window.location.search);
-            return params.get(name);
+        await processStream();
+    }
+
+    function getQueryParameter(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    }
+
+    window.onload = () => {
+        const videoUrl = getQueryParameter("url");
+        if (videoUrl) {
+            getDownloadLink(videoUrl);
+        } else {
+            document.getElementById("status").textContent = "No video URL provided.";
         }
-
-        window.onload = () => {
-            const videoUrl = getQueryParameter("url");
-            if (videoUrl) {
-                getDownloadLink(videoUrl);
-            } else {
-                document.getElementById("status").textContent = "No video URL provided.";
-            }
-        };
+    };
     </script>
-
 </body>
 </html>

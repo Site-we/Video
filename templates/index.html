@@ -9,33 +9,42 @@
             text-align: center;
             background-color: #f4f4f4;
             padding: 20px;
-        }
-        h2 {
-            color: #333;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
         .container {
             background: #fff;
-            padding: 20px;
+            padding: 30px;
             border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            width: 50%;
-            margin: auto;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            width: 60%;
+            text-align: center;
         }
         .progress-container {
             width: 100%;
             background: #ddd;
-            border-radius: 5px;
+            border-radius: 10px;
             overflow: hidden;
-            margin-top: 10px;
+            margin-top: 15px;
         }
         .progress-bar {
-            height: 20px;
+            height: 30px;
             background: #1d557d;
             width: 0%;
             text-align: center;
             color: white;
-            line-height: 20px;
-            border-radius: 5px;
+            line-height: 30px;
+            font-weight: bold;
+            border-radius: 10px;
+        }
+        #speed {
+            margin-top: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
         }
     </style>
 </head>
@@ -46,6 +55,7 @@
         <div class="progress-container">
             <div class="progress-bar" id="progress-bar">0%</div>
         </div>
+        <p id="speed">Speed: 0 KB/s</p>
     </div><script>
 async function getDownloadLink(url) {
     document.getElementById("status").textContent = "Fetching download link...";
@@ -90,17 +100,20 @@ async function downloadM3U8(m3u8Url) {
         }
 
         document.getElementById("status").textContent = "Downloading segments...";
-        let blobParts = [];
+        let blobParts = new Array(tsFiles.length);
+        let startTime = Date.now();
+        let downloadedSize = 0;
 
-        for (let i = 0; i < tsFiles.length; i++) {
-            let tsUrl = tsFiles[i].startsWith("http") ? tsFiles[i] : baseUrl + tsFiles[i];
+        await Promise.all(tsFiles.map(async (url, index) => {
+            let tsUrl = url.startsWith("http") ? url : baseUrl + url;
             const tsResponse = await fetch(tsUrl);
             const tsBlob = await tsResponse.blob();
-            blobParts.push(tsBlob);
-
-            let progress = ((i + 1) / tsFiles.length) * 100;
-            updateProgressBar(progress);
-        }
+            blobParts[index] = tsBlob;
+            downloadedSize += tsBlob.size;
+            
+            let progress = ((blobParts.filter(Boolean).length) / tsFiles.length) * 100;
+            updateProgressBar(progress, downloadedSize, startTime);
+        }));
 
         const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
         const downloadUrl = URL.createObjectURL(mergedBlob);
@@ -119,13 +132,17 @@ function startDownload(url, filename = "video.mp4") {
     a.click();
     document.body.removeChild(a);
     document.getElementById("status").textContent = "Download complete!";
-    updateProgressBar(100);
+    updateProgressBar(100, 0, 0);
 }
 
-function updateProgressBar(progress) {
+function updateProgressBar(progress, downloadedSize, startTime) {
     const progressBar = document.getElementById("progress-bar");
     progressBar.style.width = progress + "%";
     progressBar.textContent = Math.round(progress) + "%";
+    
+    let elapsedTime = (Date.now() - startTime) / 1000;
+    let speed = downloadedSize / elapsedTime / 1024;
+    document.getElementById("speed").textContent = `Speed: ${speed.toFixed(2)} KB/s`;
 }
 
 function getQueryParameter(name) {

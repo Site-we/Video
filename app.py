@@ -20,22 +20,28 @@ def get_dailymotion_link():
     try:
         ydl_opts = {
             'quiet': True,
-            'extract_flat': False,  # Ensures we get full metadata
+            'extract_flat': False,
             'noplaylist': True,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)  # Extract info without downloading
-            if 'url' in info:
-                return jsonify({"download_url": info['url']}), 200  # Direct video URL
-            elif 'formats' in info:
-                return jsonify({"download_url": info['formats'][-1]['url']}), 200  # Highest quality format link
+            
+            if 'formats' in info:
+                formats = [
+                    {"quality": f"{fmt['format_note']} - {fmt.get('ext', '')}", "url": fmt["url"]}
+                    for fmt in info["formats"] if 'url' in fmt
+                ]
+                return jsonify({
+                    "title": info.get("title", "Unknown Title"),
+                    "thumbnail": info.get("thumbnail", ""),
+                    "formats": formats
+                }), 200
 
-        return jsonify({"error": "Could not extract video URL"}), 500
+        return jsonify({"error": "Could not extract video details"}), 500
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-    

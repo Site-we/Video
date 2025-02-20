@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +6,7 @@
 </head>
 <body>
     <h2>Dailymotion Video Downloader</h2>
-    <p id="status">Waiting for video URL...</p>
-
-    <script>
+    <p id="status">Waiting for video URL...</p><script>
     async function getDownloadLink(url) {
         document.getElementById("status").textContent = "Fetching download link...";
 
@@ -23,11 +20,18 @@
             const data = await response.json();
 
             if (data.download_url) {
-                document.getElementById("status").textContent = "Downloading...";
+                document.getElementById("status").textContent = "Download started...";
+                
                 if (data.download_url.endsWith(".m3u8")) {
                     await downloadM3U8(data.download_url);
                 } else {
-                    await progressiveDownload(data.download_url, "video.mp4");
+                    const a = document.createElement("a");
+                    a.href = data.download_url;
+                    a.download = "video.mp4";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    document.getElementById("status").textContent = "Download complete!";
                 }
             } else {
                 document.getElementById("status").textContent = "Error: " + data.error;
@@ -38,39 +42,52 @@
         }
     }
 
-    async function progressiveDownload(fileUrl, fileName) {
-        const response = await fetch(fileUrl);
-        if (!response.ok) {
-            document.getElementById("status").textContent = "Failed to download.";
-            return;
-        }
+    async function downloadM3U8(m3u8Url) {
+        document.getElementById("status").textContent = "Fetching M3U8 playlist...";
 
-        const fileHandle = await window.showSaveFilePicker({
-            suggestedName: fileName,
-            types: [{ description: "Video Files", accept: { "video/mp4": [".mp4"] } }]
-        });
+        try {
+            const response = await fetch(m3u8Url);
+            const playlistText = await response.text();
 
-        const writableStream = await fileHandle.createWritable();
-        const reader = response.body.getReader();
+            const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
+            const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
 
-        let receivedLength = 0;
-        const totalLength = response.headers.get("Content-Length") || 0;
-
-        async function processStream() {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                receivedLength += value.length;
-                await writableStream.write(value);
-                document.getElementById("status").textContent = `Downloading... ${Math.round((receivedLength / totalLength) * 100)}%`;
+            if (tsFiles.length === 0) {
+                document.getElementById("status").textContent = "No TS files found.";
+                return;
             }
 
-            await writableStream.close();
-            document.getElementById("status").textContent = "Download complete!";
-        }
+            document.getElementById("status").textContent = `Found ${tsFiles.length} segments. Downloading...`;
 
-        await processStream();
+            let blobParts = [];
+            async function downloadSegment(tsUrl, index) {
+                if (!tsUrl.startsWith("http")) {
+                    tsUrl = baseUrl + tsUrl;
+                }
+
+                const tsResponse = await fetch(tsUrl);
+                const tsBlob = await tsResponse.blob();
+                blobParts[index] = tsBlob;
+                document.getElementById("status").textContent = `Downloaded ${index + 1} of ${tsFiles.length} segments...`;
+            }
+
+            await Promise.all(tsFiles.map((url, index) => downloadSegment(url, index)));
+
+            const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
+            const downloadUrl = URL.createObjectURL(mergedBlob);
+
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = "video.ts";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            document.getElementById("status").textContent = "Download complete!";
+        } catch (error) {
+            document.getElementById("status").textContent = "Error fetching M3U8 file.";
+            console.error(error);
+        }
     }
 
     function getQueryParameter(name) {
@@ -86,6 +103,7 @@
             document.getElementById("status").textContent = "No video URL provided.";
         }
     };
-    </script>
+</script>
+
 </body>
 </html>

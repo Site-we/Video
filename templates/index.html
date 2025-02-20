@@ -62,7 +62,7 @@
         <button onclick="startDownload()">Download</button>
         <p id="status">Fetching video details...</p>
         <div class="progress-bar"><div id="progress" class="progress">0%</div></div>
-        <p id="speed">Download Speed: 0 KB/s</p>
+        <p id="speed">Download Speed: 0 MB/s</p>
     </div>
 
     <script>
@@ -117,29 +117,30 @@
 
         function startDownload() {
             const downloadUrl = document.getElementById("quality").value;
+            const videoTitle = document.getElementById("title").textContent.replace(/[<>:"/\\|?*]+/g, ""); // Sanitize filename
 
             if (downloadUrl.endsWith(".m3u8")) {
-                downloadM3U8(downloadUrl);
+                downloadM3U8(downloadUrl, videoTitle);
             } else {
-                downloadMP4(downloadUrl);
+                downloadMP4(downloadUrl, videoTitle);
             }
         }
 
-        function downloadMP4(url) {
+        function downloadMP4(url, title) {
             const a = document.createElement("a");
             a.href = url;
-            a.download = "video.mp4";
+            a.download = title + ".mp4";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             document.getElementById("status").textContent = "Download started!";
         }
 
-        async function downloadM3U8(m3u8Url) {
-            document.getElementById("status").textContent = "Fetching M3U8 playlist...";
+        async function downloadM3U8(m3u8Url, title) {
+            document.getElementById("status").textContent = "Preparing download...";
             document.getElementById("progress").style.width = "0%";
             document.getElementById("progress").textContent = "0%";
-            document.getElementById("speed").textContent = "Download Speed: 0 KB/s";
+            document.getElementById("speed").textContent = "Download Speed: 0 MB/s";
 
             try {
                 const startTime = Date.now();
@@ -150,11 +151,9 @@
                 const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
 
                 if (tsFiles.length === 0) {
-                    document.getElementById("status").textContent = "No TS files found.";
+                    document.getElementById("status").textContent = "Error: No video found.";
                     return;
                 }
-
-                document.getElementById("status").textContent = `Downloading ${tsFiles.length} segments...`;
 
                 let blobParts = [];
                 let downloadedSize = 0;
@@ -170,29 +169,29 @@
 
                     downloadedSize += tsBlob.size;
                     const elapsedTime = (Date.now() - startTime) / 1000; // seconds
-                    const speed = (downloadedSize / 1024 / elapsedTime).toFixed(2); // KB/s
+                    const speed = (downloadedSize / 1024 / 1024 / elapsedTime).toFixed(2); // MB/s
 
                     const progressPercent = ((index + 1) / tsFiles.length) * 100;
                     document.getElementById("progress").style.width = progressPercent + "%";
                     document.getElementById("progress").textContent = Math.round(progressPercent) + "%";
-                    document.getElementById("speed").textContent = `Download Speed: ${speed} KB/s`;
+                    document.getElementById("speed").textContent = `Download Speed: ${speed} MB/s`;
                 }
 
                 await Promise.all(tsFiles.map((url, index) => downloadSegment(url, index)));
 
-                const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
+                const mergedBlob = new Blob(blobParts, { type: "video/mp4" });
                 const downloadUrl = URL.createObjectURL(mergedBlob);
 
                 const a = document.createElement("a");
                 a.href = downloadUrl;
-                a.download = "video.ts";
+                a.download = title + ".mp4";
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
 
                 document.getElementById("status").textContent = "Download complete!";
             } catch (error) {
-                document.getElementById("status").textContent = "Error downloading M3U8 file.";
+                document.getElementById("status").textContent = "Error downloading video.";
                 console.error(error);
             }
         }

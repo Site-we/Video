@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,157 +9,109 @@
             font-family: Arial, sans-serif;
             text-align: center;
             background-color: #f4f4f4;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
         }
         .container {
-            background: #fff;
-            padding: 30px;
+            margin: 50px auto;
+            width: 50%;
+            background: white;
+            padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
-            width: 60%;
-            text-align: center;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
         }
-        .progress-container {
-            width: 100%;
-            background: #ddd;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-top: 15px;
-        }
-        .progress-bar {
-            height: 30px;
-            background: #1d557d;
-            width: 0%;
-            text-align: center;
-            color: white;
-            line-height: 30px;
-            font-weight: bold;
-            border-radius: 10px;
-        }
-        #speed {
-            margin-top: 10px;
+        input, button, select {
+            padding: 10px;
+            margin: 10px;
             font-size: 16px;
-            font-weight: bold;
-            color: #333;
+            width: 90%;
+        }
+        .thumbnail {
+            max-width: 100%;
+            border-radius: 10px;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
+
     <div class="container">
         <h2>Download Lecture</h2>
-        <p id="status">Waiting for video URL...</p>
-        <div class="progress-container">
-            <div class="progress-bar" id="progress-bar">0%</div>
+        <input type="text" id="videoUrl" placeholder="Enter Dailymotion video URL">
+        <button onclick="fetchVideoDetails()">Fetch Video</button>
+
+        <div id="videoDetails" style="display: none;">
+            <h3 id="videoTitle"></h3>
+            <img id="videoThumbnail" class="thumbnail" alt="Thumbnail">
+            <select id="qualityOptions"></select>
+            <button onclick="downloadVideo()">Download</button>
         </div>
-        <p id="speed">Speed: 0 KB/s</p>
-    </div><script>
-async function getDownloadLink(url) {
-    document.getElementById("status").textContent = "Fetching download link...";
 
-    try {
-        const response = await fetch("/get_dailymotion_link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: url })
-        });
+        <p id="status">Waiting for video URL...</p>
+    </div>
 
-        const data = await response.json();
+    <script>
+        let videoFormats = [];
 
-        if (data.download_url) {
-            document.getElementById("status").textContent = "Download started...";
-            if (data.download_url.endsWith(".m3u8")) {
-                await downloadM3U8(data.download_url);
-            } else {
-                startDownload(data.download_url);
+        async function fetchVideoDetails() {
+            const url = document.getElementById("videoUrl").value;
+            if (!url) {
+                alert("Please enter a valid URL");
+                return;
             }
-        } else {
-            document.getElementById("status").textContent = "Error: " + data.error;
+
+            document.getElementById("status").textContent = "Fetching video details...";
+
+            try {
+                const response = await fetch("/get_dailymotion_link", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    document.getElementById("status").textContent = "Error: " + data.error;
+                    return;
+                }
+
+                document.getElementById("videoTitle").textContent = data.title;
+                document.getElementById("videoThumbnail").src = data.thumbnail;
+                document.getElementById("videoDetails").style.display = "block";
+                document.getElementById("status").textContent = "Video details loaded.";
+
+                videoFormats = data.formats;
+
+                const qualitySelect = document.getElementById("qualityOptions");
+                qualitySelect.innerHTML = "";
+                data.formats.forEach((format, index) => {
+                    const option = document.createElement("option");
+                    option.value = index;
+                    option.textContent = format.quality;
+                    qualitySelect.appendChild(option);
+                });
+
+            } catch (error) {
+                document.getElementById("status").textContent = "An error occurred.";
+                console.error(error);
+            }
         }
-    } catch (error) {
-        document.getElementById("status").textContent = "An error occurred.";
-        console.error(error);
-    }
-}
 
-async function downloadM3U8(m3u8Url) {
-    document.getElementById("status").textContent = "Fetching M3U8 playlist...";
+        function downloadVideo() {
+            const selectedQuality = document.getElementById("qualityOptions").value;
+            if (!videoFormats[selectedQuality]) {
+                alert("Invalid quality selection");
+                return;
+            }
 
-    try {
-        const response = await fetch(m3u8Url);
-        const playlistText = await response.text();
-        const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
-        const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
-
-        if (tsFiles.length === 0) {
-            document.getElementById("status").textContent = "No TS files found.";
-            return;
+            const a = document.createElement("a");
+            a.href = videoFormats[selectedQuality].url;
+            a.download = "video.mp4";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            document.getElementById("status").textContent = "Download started...";
         }
-
-        document.getElementById("status").textContent = "Downloading segments...";
-        let blobParts = new Array(tsFiles.length);
-        let startTime = Date.now();
-        let downloadedSize = 0;
-
-        await Promise.all(tsFiles.map(async (url, index) => {
-            let tsUrl = url.startsWith("http") ? url : baseUrl + url;
-            const tsResponse = await fetch(tsUrl);
-            const tsBlob = await tsResponse.blob();
-            blobParts[index] = tsBlob;
-            downloadedSize += tsBlob.size;
-            
-            let progress = ((blobParts.filter(Boolean).length) / tsFiles.length) * 100;
-            updateProgressBar(progress, downloadedSize, startTime);
-        }));
-
-        const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
-        const downloadUrl = URL.createObjectURL(mergedBlob);
-        startDownload(downloadUrl, "video.ts");
-    } catch (error) {
-        document.getElementById("status").textContent = "Error fetching M3U8 file.";
-        console.error(error);
-    }
-}
-
-function startDownload(url, filename = "video.mp4") {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    document.getElementById("status").textContent = "Download complete!";
-    updateProgressBar(100, 0, 0);
-}
-
-function updateProgressBar(progress, downloadedSize, startTime) {
-    const progressBar = document.getElementById("progress-bar");
-    progressBar.style.width = progress + "%";
-    progressBar.textContent = Math.round(progress) + "%";
-    
-    let elapsedTime = (Date.now() - startTime) / 1000;
-    let speed = downloadedSize / elapsedTime / 1024;
-    document.getElementById("speed").textContent = `Speed: ${speed.toFixed(2)} KB/s`;
-}
-
-function getQueryParameter(name) {
-    const params = new URLSearchParams(window.location.search);
-    return params.get(name);
-}
-
-window.onload = () => {
-    const videoUrl = getQueryParameter("url");
-    if (videoUrl) {
-        getDownloadLink(videoUrl);
-    } else {
-        document.getElementById("status").textContent = "No video URL provided.";
-    }
-};
-</script>
+    </script>
 
 </body>
 </html>

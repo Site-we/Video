@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -6,113 +7,90 @@
 </head>
 <body>
     <h2>Dailymotion Video Downloader</h2>
-    <p id="status">Waiting for video URL...</p><script>
-async function getDownloadLink(url) {
-    document.getElementById("status").textContent = "Fetching download link...";
-    
-    try {
-        const response = await fetch("/get_dailymotion_link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: url })
-        });
-        
-        const data = await response.json();
-        
-        if (data.download_url) {
-            document.getElementById("status").textContent = "Download started...";
-            
-            if (data.download_url.endsWith(".m3u8")) {
-                await downloadM3U8(data.download_url);
+    <p id="status">Waiting for video URL...</p>
+
+    <script>
+        async function getDownloadLink(url) {
+            document.getElementById("status").textContent = "Fetching download link...";
+
+            try {
+                const response = await fetch("/get_dailymotion_link", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+
+                if (data.download_url) {
+                    document.getElementById("status").textContent = "Download started...";
+                    if (data.download_url.startsWith("blob:")) {
+                        await downloadBlobFile(data.download_url);
+                    } else if (data.download_url.endsWith(".m3u8")) {
+                        await downloadM3U8(data.download_url);
+                    } else {
+                        await fetchAndSaveFile(data.download_url, "video.mp4");
+                    }
+                } else {
+                    document.getElementById("status").textContent = "Error: " + data.error;
+                }
+            } catch (error) {
+                document.getElementById("status").textContent = "An error occurred.";
+                console.error(error);
+            }
+        }
+
+        async function fetchAndSaveFile(fileUrl, filename) {
+            document.getElementById("status").textContent = "Downloading file...";
+
+            try {
+                const response = await fetch(fileUrl);
+                const blob = await response.blob();
+                saveBlobToFile(blob, filename);
+            } catch (error) {
+                document.getElementById("status").textContent = "Error downloading file.";
+                console.error(error);
+            }
+        }
+
+        async function downloadBlobFile(blobUrl) {
+            document.getElementById("status").textContent = "Processing blob URL...";
+            try {
+                const blobResponse = await fetch(blobUrl);
+                const blob = await blobResponse.blob();
+                saveBlobToFile(blob, "downloaded_video.mp4");
+            } catch (error) {
+                document.getElementById("status").textContent = "Error downloading blob.";
+                console.error(error);
+            }
+        }
+
+        function saveBlobToFile(blob, filename) {
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+            document.getElementById("status").textContent = "Download complete!";
+        }
+
+        function getQueryParameter(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+
+        window.onload = () => {
+            const videoUrl = getQueryParameter("url");
+            if (videoUrl) {
+                getDownloadLink(videoUrl);
             } else {
-                await fetchAndSaveFile(data.download_url, "video.mp4");
+                document.getElementById("status").textContent = "No video URL provided.";
             }
-        } else {
-            document.getElementById("status").textContent = "Error: " + data.error;
-        }
-    } catch (error) {
-        document.getElementById("status").textContent = "An error occurred.";
-        console.error(error);
-    }
-}
-
-async function downloadM3U8(m3u8Url) {
-    document.getElementById("status").textContent = "Fetching M3U8 playlist...";
-
-    try {
-        const response = await fetch(m3u8Url);
-        const playlistText = await response.text();
-        const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
-        const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
-
-        if (tsFiles.length === 0) {
-            document.getElementById("status").textContent = "No TS files found.";
-            return;
-        }
-
-        document.getElementById("status").textContent = `Found ${tsFiles.length} segments. Downloading...`;
-        let blobParts = [];
-        
-        async function downloadSegment(tsUrl, index) {
-            if (!tsUrl.startsWith("http")) {
-                tsUrl = baseUrl + tsUrl;
-            }
-            
-            const tsResponse = await fetch(tsUrl);
-            const tsBlob = await tsResponse.blob();
-            blobParts[index] = tsBlob;
-            document.getElementById("status").textContent = `Downloaded ${index + 1} of ${tsFiles.length} segments...`;
-        }
-        
-        await Promise.all(tsFiles.map((url, index) => downloadSegment(url, index)));
-
-        const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
-        await saveBlobToFile(mergedBlob, "video.ts");
-    } catch (error) {
-        document.getElementById("status").textContent = "Error fetching M3U8 file.";
-        console.error(error);
-    }
-}
-
-async function fetchAndSaveFile(fileUrl, filename) {
-    document.getElementById("status").textContent = "Downloading file...";
-    
-    try {
-        const response = await fetch(fileUrl);
-        const blob = await response.blob();
-        await saveBlobToFile(blob, filename);
-    } catch (error) {
-        document.getElementById("status").textContent = "Error downloading file.";
-        console.error(error);
-    }
-}
-
-async function saveBlobToFile(blob, filename) {
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(blobUrl);
-    document.getElementById("status").textContent = "Download complete!";
-}
-
-function getQueryParameter(name) {
-    const params = new URLSearchParams(window.location.search);
-    return params.get(name);
-}
-
-window.onload = () => {
-    const videoUrl = getQueryParameter("url");
-    if (videoUrl) {
-        getDownloadLink(videoUrl);
-    } else {
-        document.getElementById("status").textContent = "No video URL provided.";
-    }
-};
-</script>
+        };
+    </script>
 
 </body>
 </html>

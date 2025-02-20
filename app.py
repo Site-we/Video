@@ -26,12 +26,18 @@ def get_dailymotion_link():
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)  # Extract info without downloading
-            
+
             if 'formats' in info:
-                formats = [
-                    {"quality": f"{fmt['format_note']} - {fmt.get('ext', '')}", "url": fmt["url"]}
-                    for fmt in info["formats"] if 'url' in fmt
-                ]
+                formats = []
+                for fmt in info["formats"]:
+                    if 'url' in fmt:
+                        quality_label = fmt.get("format_note", f"{fmt.get('height', 'Unknown')}p")
+                        file_extension = fmt.get("ext", "mp4")
+                        formats.append({
+                            "quality": f"{quality_label} - {file_extension}",
+                            "url": fmt["url"]
+                        })
+
                 return jsonify({
                     "title": info.get("title", "Unknown Title"),
                     "thumbnail": info.get("thumbnail", ""),

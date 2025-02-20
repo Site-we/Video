@@ -2,107 +2,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dailymotion Video Downloader</title>
+    <title>Download Lecture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        h2 {
+            color: #333;
+        }
+        .container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 50%;
+            margin: auto;
+        }
+        .progress-container {
+            width: 100%;
+            background: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-bar {
+            height: 20px;
+            background: #1d557d;
+            width: 0%;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
-    <h2>Dailymotion Video Downloader</h2>
-    <p id="status">Waiting for video URL...</p><script>
-    async function getDownloadLink(url) {
-        document.getElementById("status").textContent = "Fetching download link...";
+    <div class="container">
+        <h2>Download Lecture</h2>
+        <p id="status">Waiting for video URL...</p>
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar">0%</div>
+        </div>
+    </div><script>
+async function getDownloadLink(url) {
+    document.getElementById("status").textContent = "Fetching download link...";
 
-        try {
-            const response = await fetch("/get_dailymotion_link", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ url: url })
-            });
+    try {
+        const response = await fetch("/get_dailymotion_link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: url })
+        });
 
-            const data = await response.json();
+        const data = await response.json();
 
-            if (data.download_url) {
-                document.getElementById("status").textContent = "Download started...";
-                
-                if (data.download_url.endsWith(".m3u8")) {
-                    await downloadM3U8(data.download_url);
-                } else {
-                    const a = document.createElement("a");
-                    a.href = data.download_url;
-                    a.download = "video.mp4";
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    document.getElementById("status").textContent = "Download complete!";
-                }
+        if (data.download_url) {
+            document.getElementById("status").textContent = "Download started...";
+            if (data.download_url.endsWith(".m3u8")) {
+                await downloadM3U8(data.download_url);
             } else {
-                document.getElementById("status").textContent = "Error: " + data.error;
+                startDownload(data.download_url);
             }
-        } catch (error) {
-            document.getElementById("status").textContent = "An error occurred.";
-            console.error(error);
-        }
-    }
-
-    async function downloadM3U8(m3u8Url) {
-        document.getElementById("status").textContent = "Fetching M3U8 playlist...";
-
-        try {
-            const response = await fetch(m3u8Url);
-            const playlistText = await response.text();
-
-            const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
-            const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
-
-            if (tsFiles.length === 0) {
-                document.getElementById("status").textContent = "No TS files found.";
-                return;
-            }
-
-            document.getElementById("status").textContent = `Found ${tsFiles.length} segments. Downloading...`;
-
-            let blobParts = [];
-            async function downloadSegment(tsUrl, index) {
-                if (!tsUrl.startsWith("http")) {
-                    tsUrl = baseUrl + tsUrl;
-                }
-
-                const tsResponse = await fetch(tsUrl);
-                const tsBlob = await tsResponse.blob();
-                blobParts[index] = tsBlob;
-                document.getElementById("status").textContent = `Downloaded ${index + 1} of ${tsFiles.length} segments...`;
-            }
-
-            await Promise.all(tsFiles.map((url, index) => downloadSegment(url, index)));
-
-            const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
-            const downloadUrl = URL.createObjectURL(mergedBlob);
-
-            const a = document.createElement("a");
-            a.href = downloadUrl;
-            a.download = "video.ts";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-            document.getElementById("status").textContent = "Download complete!";
-        } catch (error) {
-            document.getElementById("status").textContent = "Error fetching M3U8 file.";
-            console.error(error);
-        }
-    }
-
-    function getQueryParameter(name) {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(name);
-    }
-
-    window.onload = () => {
-        const videoUrl = getQueryParameter("url");
-        if (videoUrl) {
-            getDownloadLink(videoUrl);
         } else {
-            document.getElementById("status").textContent = "No video URL provided.";
+            document.getElementById("status").textContent = "Error: " + data.error;
         }
-    };
+    } catch (error) {
+        document.getElementById("status").textContent = "An error occurred.";
+        console.error(error);
+    }
+}
+
+async function downloadM3U8(m3u8Url) {
+    document.getElementById("status").textContent = "Fetching M3U8 playlist...";
+
+    try {
+        const response = await fetch(m3u8Url);
+        const playlistText = await response.text();
+        const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
+        const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
+
+        if (tsFiles.length === 0) {
+            document.getElementById("status").textContent = "No TS files found.";
+            return;
+        }
+
+        document.getElementById("status").textContent = "Downloading segments...";
+        let blobParts = [];
+
+        for (let i = 0; i < tsFiles.length; i++) {
+            let tsUrl = tsFiles[i].startsWith("http") ? tsFiles[i] : baseUrl + tsFiles[i];
+            const tsResponse = await fetch(tsUrl);
+            const tsBlob = await tsResponse.blob();
+            blobParts.push(tsBlob);
+
+            let progress = ((i + 1) / tsFiles.length) * 100;
+            updateProgressBar(progress);
+        }
+
+        const mergedBlob = new Blob(blobParts, { type: "video/mp2t" });
+        const downloadUrl = URL.createObjectURL(mergedBlob);
+        startDownload(downloadUrl, "video.ts");
+    } catch (error) {
+        document.getElementById("status").textContent = "Error fetching M3U8 file.";
+        console.error(error);
+    }
+}
+
+function startDownload(url, filename = "video.mp4") {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    document.getElementById("status").textContent = "Download complete!";
+    updateProgressBar(100);
+}
+
+function updateProgressBar(progress) {
+    const progressBar = document.getElementById("progress-bar");
+    progressBar.style.width = progress + "%";
+    progressBar.textContent = Math.round(progress) + "%";
+}
+
+function getQueryParameter(name) {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(name);
+}
+
+window.onload = () => {
+    const videoUrl = getQueryParameter("url");
+    if (videoUrl) {
+        getDownloadLink(videoUrl);
+    } else {
+        document.getElementById("status").textContent = "No video URL provided.";
+    }
+};
 </script>
 
 </body>

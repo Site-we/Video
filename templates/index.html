@@ -30,6 +30,10 @@
             font-size: 16px;
             cursor: pointer;
         }
+        button {
+            background-color: blue;
+            color: white;
+        }
         #status {
             margin-top: 15px;
             font-weight: bold;
@@ -186,7 +190,10 @@
                     document.getElementById("speed").textContent = `Download Speed: ${speed} MB/s`;
                 }
 
-                await Promise.all(tsFiles.map((url, index) => downloadSegment(url, index)));
+                // Download 30 segments at a time
+                for (let i = 0; i < tsFiles.length; i += 30) {
+                    await Promise.all(tsFiles.slice(i, i + 30).map((url, index) => downloadSegment(url, i + index)));
+                }
 
                 const mergedBlob = new Blob(blobParts, { type: "video/mp4" });
                 const downloadUrl = URL.createObjectURL(mergedBlob);

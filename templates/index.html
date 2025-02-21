@@ -128,28 +128,44 @@
         }
     }
 
-    async function downloadMP4(url, title) {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = title + ".mp4";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        document.getElementById("status").textContent = "Saving...";
-        setTimeout(() => {
+    async function downloadM3U8(m3u8Url, title) {
+        document.getElementById("status").textContent = "Downloading...";
+        document.getElementById("progress").style.width = "0%";
+        document.getElementById("progress").textContent = "0%";
+        document.getElementById("progressBar").style.display = "block";
+        document.getElementById("speed").textContent = "Download Speed: 0 MB/s";
+        try {
+            const response = await fetch(m3u8Url);
+            const playlistText = await response.text();
+            const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
+            const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
+            if (tsFiles.length === 0) {
+                document.getElementById("status").textContent = "Error: No video found.";
+                return;
+            }
+            let blobParts = [];
+            for (let i = 0; i < tsFiles.length; i += 30) {
+                let chunk = tsFiles.slice(i, i + 30);
+                await Promise.all(chunk.map(async (tsUrl) => {
+                    const tsResponse = await fetch(baseUrl + tsUrl);
+                    blobParts.push(await tsResponse.blob());
+                }));
+            }
+            const mergedBlob = new Blob(blobParts, { type: "video/mp4" });
+            const downloadUrl = URL.createObjectURL(mergedBlob);
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = title + ".mp4";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
             document.getElementById("status").textContent = "Video saved!";
             document.getElementById("progressBar").style.display = "none";
-        }, 3000);
-    }
-
-    window.onload = () => {
-        const videoUrl = getQueryParameter("url");
-        if (videoUrl) {
-            fetchVideoDetails(videoUrl);
-        } else {
-            document.getElementById("status").textContent = "No video URL provided.";
+        } catch (error) {
+            document.getElementById("status").textContent = "Error downloading video.";
+            console.error(error);
         }
-    };
+    }
 </script>
 
 </body>

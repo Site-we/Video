@@ -8,15 +8,14 @@
             font-family: Arial, sans-serif;
             text-align: center;
             padding: 20px;
-            background-color: #f0f8ff;
         }
         .container {
             max-width: 500px;
             margin: auto;
             padding: 20px;
             border-radius: 10px;
-            background: #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: #f4f4f4;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         img {
             max-width: 100%;
@@ -29,15 +28,6 @@
             margin-top: 10px;
             font-size: 16px;
             cursor: pointer;
-            border-radius: 5px;
-            border: none;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-        }
-        button:disabled {
-            background-color: #a0a0a0;
         }
         #status {
             margin-top: 15px;
@@ -55,7 +45,7 @@
         .progress {
             height: 100%;
             width: 0%;
-            background: #28a745;
+            background: #4caf50;
             text-align: center;
             line-height: 20px;
             color: white;
@@ -71,16 +61,15 @@
         <select id="quality"></select>
         <button id="downloadBtn" onclick="startDownload()">Download</button>
         <p id="status">Fetching video details...</p>
-        <div class="progress-bar" id="progressBar">
-            <div id="progress" class="progress">0%</div>
-        </div>
+        <div class="progress-bar" id="progressBar"><div id="progress" class="progress">0%</div></div>
         <p id="speed">Download Speed: 0 MB/s</p>
-    </div>
-    <script>
-        function getQueryParameter(name) {
-            const params = new URLSearchParams(window.location.search);
-            return params.get(name);
-        }async function fetchVideoDetails(url) {
+    </div><script>
+    function getQueryParameter(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    }
+
+    async function fetchVideoDetails(url) {
         document.getElementById("status").textContent = "Fetching video details...";
         try {
             const response = await fetch("/get_dailymotion_link", {
@@ -88,13 +77,17 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ url })
             });
+
             const data = await response.json();
+
             if (data.error) {
                 document.getElementById("status").textContent = "Error: " + data.error;
                 return;
             }
+
             document.getElementById("title").textContent = data.title;
             document.getElementById("thumbnail").src = data.thumbnail;
+
             const qualitySelect = document.getElementById("quality");
             qualitySelect.innerHTML = "";
             let defaultSelected = false;
@@ -102,12 +95,15 @@
                 const option = document.createElement("option");
                 option.value = format.url;
                 option.textContent = format.quality;
+
                 if (format.quality.includes("480p") && !defaultSelected) {
                     option.selected = true;
                     defaultSelected = true;
                 }
+
                 qualitySelect.appendChild(option);
             });
+
             document.getElementById("status").textContent = "Ready to download!";
         } catch (error) {
             document.getElementById("status").textContent = "An error occurred.";
@@ -129,10 +125,9 @@
     }
 
     async function downloadM3U8(m3u8Url, title) {
-        document.getElementById("status").textContent = "Downloading...";
+        document.getElementById("status").textContent = "Preparing download...";
         document.getElementById("progress").style.width = "0%";
         document.getElementById("progress").textContent = "0%";
-        document.getElementById("progressBar").style.display = "block";
         document.getElementById("speed").textContent = "Download Speed: 0 MB/s";
         try {
             const response = await fetch(m3u8Url);
@@ -150,6 +145,9 @@
                     const tsResponse = await fetch(baseUrl + tsUrl);
                     blobParts.push(await tsResponse.blob());
                 }));
+                let progressPercent = ((i + 30) / tsFiles.length) * 100;
+                document.getElementById("progress").style.width = progressPercent + "%";
+                document.getElementById("progress").textContent = Math.round(progressPercent) + "%";
             }
             const mergedBlob = new Blob(blobParts, { type: "video/mp4" });
             const downloadUrl = URL.createObjectURL(mergedBlob);

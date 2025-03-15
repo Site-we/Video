@@ -73,7 +73,7 @@
         <select id="quality"></select>
         <button id="downloadBtn" onclick="startDownload()">Download</button>
         <p id="status">Fetching video details...</p>
-        <div class="progress-bar" id="progressBar"><div id="progress" class="progress">0%</</div></div>
+        <div class="progress-bar" id="progressBar"><div id="progress" class="progress">0%</div></div>
         <p id="speed">Download Speed: 0 MB/s</p>
     </div>
 
@@ -87,8 +87,7 @@
             document.getElementById("status").textContent = "Fetching video details...";
 
             try {
-                const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("/get_dailymotion_link");
-                const response = await fetch(proxyUrl, {
+                const response = await fetch("/get_dailymotion_link", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ url })
@@ -145,7 +144,7 @@
 
         function downloadMP4(url, title) {
             const a = document.createElement("a");
-            a.href = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+            a.href = url;
             a.download = title + ".mp4";
             document.body.appendChild(a);
             a.click();
@@ -166,8 +165,7 @@
 
             try {
                 const startTime = Date.now();
-                const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(m3u8Url);
-                const response = await fetch(proxyUrl);
+                const response = await fetch(m3u8Url);
                 const playlistText = await response.text();
 
                 const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
@@ -186,7 +184,8 @@
                         tsUrl = baseUrl + tsUrl;
                     }
 
-                    const tsResponse = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(tsUrl));
+                    const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(tsUrl);
+                    const tsResponse = await fetch(proxyUrl);
                     const tsBlob = await tsResponse.blob();
                     blobParts[index] = tsBlob;
 

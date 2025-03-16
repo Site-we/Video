@@ -78,161 +78,74 @@
     </div>
 
     <script>
-        function getQueryParameter(name) {
-            const params = new URLSearchParams(window.location.search);
-            return params.get(name);
+    let downloadId = "";
+
+    function startDownload() {
+        const selectedOption = document.getElementById("quality").selectedOptions[0];
+        const videoUrl = getQueryParameter("url");
+        const formatId = selectedOption.getAttribute("data-format-id");
+        const videoTitle = document.getElementById("title").textContent;
+
+        if (!videoUrl || !formatId) {
+            document.getElementById("status").textContent = "Error: No valid selection!";
+            return;
         }
 
-        async function fetchVideoDetails(url) {
-            document.getElementById("status").textContent = "Fetching video details...";
+        document.getElementById("status").textContent = "Starting download...";
+        document.getElementById("progress").style.width = "0%";
+        document.getElementById("progress").textContent = "0%";
 
-            try {
-                const response = await fetch("/get_dailymotion_link", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url })
-                });
+        fetch("/start_download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: videoUrl, format_id: formatId, title: videoTitle })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.download_id) {
+                downloadId = data.download_id;
+                checkProgress();
+            } else {
+                document.getElementById("status").textContent = "Error: " + data.error;
+            }
+        })
+        .catch(error => {
+            document.getElementById("status").textContent = "Failed to start download.";
+            console.error(error);
+        });
+    }
 
-                const data = await response.json();
+    function checkProgress() {
+        if (!downloadId) return;
 
-                if (data.error) {
+        fetch(`/download_progress/${downloadId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "downloading") {
+                    document.getElementById("progress").style.width = data.progress;
+                    document.getElementById("progress").textContent = data.progress;
+                    document.getElementById("speed").textContent = `Speed: ${data.speed} | ETA: ${data.eta}`;
+                    setTimeout(checkProgress, 2000); // Poll every 2 seconds
+                } else if (data.status === "completed") {
+                    document.getElementById("status").textContent = "Download complete!";
+                    document.getElementById("progress").style.width = "100%";
+                    document.getElementById("progress").textContent = "100%";
+
+                    const a = document.createElement("a");
+                    a.href = data.link;
+                    a.textContent = "Click here to download";
+                    a.style.display = "block";
+                    a.style.marginTop = "10px";
+                    document.body.appendChild(a);
+                } else if (data.status === "failed") {
                     document.getElementById("status").textContent = "Error: " + data.error;
-                    return;
                 }
-
-                document.getElementById("title").textContent = data.title;
-                document.getElementById("thumbnail").src = data.thumbnail;
-
-                const qualitySelect = document.getElementById("quality");
-                qualitySelect.innerHTML = "";
-
-                let defaultSelected = false;
-                data.formats.forEach((format) => {
-                    const option = document.createElement("option");
-                    option.value = format.url;
-                    option.textContent = format.quality;
-
-                    if (format.quality.includes("480p") && !defaultSelected) {
-                        option.selected = true;
-                        defaultSelected = true;
-                    }
-
-                    qualitySelect.appendChild(option);
-                });
-
-                document.getElementById("status").textContent = "Ready to download!";
-            } catch (error) {
-                document.getElementById("status").textContent = "An error occurred.";
+            })
+            .catch(error => {
+                document.getElementById("status").textContent = "Error checking progress.";
                 console.error(error);
-            }
-        }
-
-        function startDownload() {
-            const downloadUrl = document.getElementById("quality").value;
-            const videoTitle = document.getElementById("title").textContent.replace(/[<>:"/\\|?*]+/g, ""); // Sanitize filename
-
-            // Hide download button & quality selection
-            document.getElementById("downloadBtn").style.display = "none";
-            document.getElementById("quality").style.display = "none";
-
-            if (downloadUrl.endsWith(".m3u8")) {
-                downloadM3U8(downloadUrl, videoTitle);
-            } else {
-                downloadMP4(downloadUrl, videoTitle);
-            }
-        }
-
-        function downloadMP4(url, title) {
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = title + ".mp4";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-
-            document.getElementById("status").textContent = "Saving...";
-            setTimeout(() => {
-                document.getElementById("status").textContent = "Video saved!";
-                document.getElementById("progressBar").style.display = "none";
-            }, 3000);
-        }
-
-        async function downloadM3U8(m3u8Url, title) {
-            document.getElementById("status").textContent = "Preparing download...";
-            document.getElementById("progress").style.width = "0%";
-            document.getElementById("progress").textContent = "0%";
-            document.getElementById("speed").textContent = "Download Speed: 0 MB/s";
-
-            try {
-                const startTime = Date.now();
-                const response = await fetch(m3u8Url);
-                const playlistText = await response.text();
-
-                const baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
-                const tsFiles = playlistText.match(/(.*\.ts)/g) || [];
-
-                if (tsFiles.length === 0) {
-                    document.getElementById("status").textContent = "Error: No video found.";
-                    return;
-                }
-
-                let blobParts = [];
-                let downloadedSize = 0;
-
-                async function downloadSegment(tsUrl, index) {
-                    if (!tsUrl.startsWith("http")) {
-                        tsUrl = baseUrl + tsUrl;
-                    }
-
-                    const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(tsUrl);
-                    const tsResponse = await fetch(proxyUrl);
-                    const tsBlob = await tsResponse.blob();
-                    blobParts[index] = tsBlob;
-
-                    downloadedSize += tsBlob.size;
-                    const elapsedTime = (Date.now() - startTime) / 1000; // seconds
-                    const speed = (downloadedSize / 1024 / 1024 / elapsedTime).toFixed(2); // MB/s
-
-                    const progressPercent = ((index + 1) / tsFiles.length) * 100;
-                    document.getElementById("progress").style.width = progressPercent + "%";
-                    document.getElementById("progress").textContent = Math.round(progressPercent) + "%";
-                    document.getElementById("speed").textContent = `Download Speed: ${speed} MB/s`;
-                }
-
-                // Download 30 segments at a time
-                for (let i = 0; i < tsFiles.length; i += 30) {
-                    await Promise.all(tsFiles.slice(i, i + 30).map((url, index) => downloadSegment(url, i + index)));
-                }
-
-                const mergedBlob = new Blob(blobParts, { type: "video/mp4" });
-                const downloadUrl = URL.createObjectURL(mergedBlob);
-
-                const a = document.createElement("a");
-                a.href = downloadUrl;
-                a.download = title + ".mp4";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-
-                document.getElementById("status").textContent = "Saving...";
-                setTimeout(() => {
-                    document.getElementById("status").textContent = "Video saved!";
-                    document.getElementById("progressBar").style.display = "none";
-                }, 3000);
-            } catch (error) {
-                document.getElementById("status").textContent = "Error downloading video.";
-                console.error(error);
-            }
-        }
-
-        window.onload = () => {
-            const videoUrl = getQueryParameter("url");
-            if (videoUrl) {
-                fetchVideoDetails(videoUrl);
-            } else {
-                document.getElementById("status").textContent = "No video URL provided.";
-            }
-        };
-    </script>
+            });
+    }
+</script>
 </body>
 </html>

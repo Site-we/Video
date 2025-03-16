@@ -63,6 +63,19 @@
             font-weight: bold;
             transition: width 0.4s ease; /* Smooth transition for progress bar */
         }
+        .m3u8-links {
+            margin-top: 20px;
+            display: none;
+        }
+        .m3u8-links a {
+            display: block;
+            margin: 10px 0;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .m3u8-links a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -71,81 +84,83 @@
         <img id="thumbnail" src="" alt="Thumbnail">
         <h3 id="title">Loading...</h3>
         <select id="quality"></select>
-        <button id="downloadBtn" onclick="startDownload()">Download</button>
+        <button id="downloadBtn" onclick="copyM3U8Link()">Download</button>
         <p id="status">Fetching video details...</p>
-        <div class="progress-bar" id="progressBar"><div id="progress" class="progress">0%</div></div>
+        <div class="progress-bar" id="progressBar"><div id="progress" class="progress">0%</</div></div>
         <p id="speed">Download Speed: 0 MB/s</p>
+        <div class="m3u8-links" id="m3u8LinksContainer"></div>
     </div>
 
     <script>
-    let downloadId = "";
-
-    function startDownload() {
-        const selectedOption = document.getElementById("quality").selectedOptions[0];
-        const videoUrl = getQueryParameter("url");
-        const formatId = selectedOption.getAttribute("data-format-id");
-        const videoTitle = document.getElementById("title").textContent;
-
-        if (!videoUrl || !formatId) {
-            document.getElementById("status").textContent = "Error: No valid selection!";
-            return;
+        function getQueryParameter(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
         }
 
-        document.getElementById("status").textContent = "Starting download...";
-        document.getElementById("progress").style.width = "0%";
-        document.getElementById("progress").textContent = "0%";
+        async function fetchVideoDetails(url) {
+            document.getElementById("status").textContent = "Fetching video details...";
 
-        fetch("/start_download", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: videoUrl, format_id: formatId, title: videoTitle })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.download_id) {
-                downloadId = data.download_id;
-                checkProgress();
-            } else {
-                document.getElementById("status").textContent = "Error: " + data.error;
-            }
-        })
-        .catch(error => {
-            document.getElementById("status").textContent = "Failed to start download.";
-            console.error(error);
-        });
-    }
+            try {
+                const response = await fetch("/get_dailymotion_link", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url })
+                });
 
-    function checkProgress() {
-        if (!downloadId) return;
+                const data = await response.json();
 
-        fetch(`/download_progress/${downloadId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === "downloading") {
-                    document.getElementById("progress").style.width = data.progress;
-                    document.getElementById("progress").textContent = data.progress;
-                    document.getElementById("speed").textContent = `Speed: ${data.speed} | ETA: ${data.eta}`;
-                    setTimeout(checkProgress, 2000); // Poll every 2 seconds
-                } else if (data.status === "completed") {
-                    document.getElementById("status").textContent = "Download complete!";
-                    document.getElementById("progress").style.width = "100%";
-                    document.getElementById("progress").textContent = "100%";
-
-                    const a = document.createElement("a");
-                    a.href = data.link;
-                    a.textContent = "Click here to download";
-                    a.style.display = "block";
-                    a.style.marginTop = "10px";
-                    document.body.appendChild(a);
-                } else if (data.status === "failed") {
+                if (data.error) {
                     document.getElementById("status").textContent = "Error: " + data.error;
+                    return;
                 }
-            })
-            .catch(error => {
-                document.getElementById("status").textContent = "Error checking progress.";
+
+                document.getElementById("title").textContent = data.title;
+                document.getElementById("thumbnail").src = data.thumbnail;
+
+                const qualitySelect = document.getElementById("quality");
+                qualitySelect.innerHTML = "";
+
+                let defaultSelected = false;
+                data.formats.forEach((format) => {
+                    const option = document.createElement("option");
+                    option.value = format.url;
+                    option.textContent = format.quality;
+
+                    if (format.quality.includes("480p") && !defaultSelected) {
+                        option.selected = true;
+                        defaultSelected = true;
+                    }
+
+                    qualitySelect.appendChild(option);
+                });
+
+                document.getElementById("status").textContent = "Ready to download!";
+            } catch (error) {
+                document.getElementById("status").textContent = "An error occurred.";
                 console.error(error);
+            }
+        }
+
+        function copyM3U8Link() {
+            const selectedFormat = document.getElementById("quality").selectedOptions[0];
+            const m3u8Link = selectedFormat.value;
+
+            navigator.clipboard.writeText(m3u8Link).then(() => {
+                document.getElementById("status").textContent = "M3U8 link copied to clipboard!";
+            }).catch(err => {
+                document.getElementById("status").textContent = "Failed to copy link.";
+                console.error("Failed to copy: ", err);
             });
-    }
-</script>
+        }
+
+        window.onload = () => {
+            const videoUrl = getQueryParameter("url");
+            if (videoUrl) {
+                fetchVideoDetails(videoUrl);
+            } else {
+                document.getElementById("status").textContent = "No video URL provided.";
+            }
+        };
+    </script>
 </body>
 </html>
